@@ -70,6 +70,7 @@ jobs:
         with:
           context: ./backend/${{ env.REPO }}-backend
           file: ./backend/${{ env.REPO }}-backend/Dockerfile
+          load: true
           push: false
           tags: ${{ steps.imageName.outputs.tags }}
           provenance: true
@@ -110,7 +111,7 @@ jobs:
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          cosign sign --yes \ "${{ steps.imageName.outputs.image }}@${DIGEST}"
+          cosign sign --yes "${{ steps.imageName.outputs.image }}@${DIGEST}"
         
   #------------------------------------------------------------------------#
   #                   Build and publish frontend image on GHCR
