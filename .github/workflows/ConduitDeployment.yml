@@ -62,12 +62,12 @@ build_and_publish_backend:
         password: ${{ secrets.GHCR_PAT }}
     
     - name: Build and push Docker backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./backend/${{ env.REPO }}-backend/Dockerfile
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-backend:latest
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./backend/${{ env.REPO }}-backend/Dockerfile
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-backend:latest
 
 
 
