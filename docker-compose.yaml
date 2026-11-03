@@ -15,7 +15,7 @@ services:
       timeout: 5s
       retries: 5
   backend:
-    build: ./backend/conduit-backend
+    image: ghcr.io/majoneko/conduit-backend:latest
     container_name: conduit-backend
     restart: unless-stopped
     # Backend should only start up when the database is up and running
@@ -38,7 +38,7 @@ services:
     volumes:
       - static_volume:/app/staticfiles
   frontend:
-    build: ./frontend/conduit-frontend
+    image: ghcr.io/majoneko/conduit-frontend:latest
     container_name: conduit-frontend
     restart: unless-stopped
     # Frontend should only run whn backend is up and running

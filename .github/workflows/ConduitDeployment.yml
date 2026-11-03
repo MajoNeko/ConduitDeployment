@@ -11,29 +11,37 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "main" ]
-  
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   REPO: conduit
 
+# permissions granted to this workflow for the Repo
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 #------------------------------------------------------------------------#
-#                   Build and publich backend image on GHCR
+#                   Build and publish backend image on GHCR
 #------------------------------------------------------------------------#
 
   build_and_publish_backend:
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.imageName.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Sets a dedicated builder to allow for the use of SBOM and provenance and keeps the state consistent across steps
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       # Using Personal AccessToken (PAT), logs into the GIT Hub Container Repository (GHCR)
       - name: Log in to the Container registry
@@ -43,21 +51,64 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Set repository owner name to lowercase for GHCR
-      - name: Set lowercase image name
+      # Set repository owner name to lowercase for GHCR and set immutable tags for signed images
+      - name: Set lowercase image name and immutable tags
         id: imageName
-        run: echo "name=${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-backend:latest" >> "$GITHUB_OUTPUT"
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-backend"
+          SHA_SHORT="${GITHUB_SHA::7}"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$IMAGE:latest" >> "$GITHUB_OUTPUT"
+          echo "$IMAGE:sha-$SHA_SHORT" >> "$GITHUB_OUTPUT"
+          echo "$IMAGE:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
       
-      - name: Build and push Docker backend image
+      - name: Build Docker backend image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/${{ env.REPO }}-backend
+          file: ./backend/${{ env.REPO }}-backend/Dockerfile
+          push: false
+          tags: ${{ steps.imageName.outputs.tags }}
+          provenance: true
+          sbom: true
+
+      # Scan image for safety before pushing to Repo
+      - name: Scan backend image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.imageName.outputs.image }}:sha-${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      # On passed scan, push to repo
+      - name: Push backend image
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: ./backend/${{ env.REPO }}-backend
           file: ./backend/${{ env.REPO }}-backend/Dockerfile
           push: true
-          tags: ${{ steps.imageName.outputs.name }}
+          tags: ${{ steps.imageName.outputs.tags }}
+          provenance: true
+          sbom: true
 
+      # Setup signed image
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      
+      - name: Sign backend image
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          cosign sign --yes \ "${{ steps.imageName.outputs.image }}@${DIGEST}"
+        
   #------------------------------------------------------------------------#
-  #                   Build and publich frontend image on GHCR
+  #                   Build and publish frontend image on GHCR
   #------------------------------------------------------------------------#
   build_and_publish_frontend:
       runs-on: ubuntu-latest
@@ -88,6 +139,11 @@ jobs:
             file: ./frontend/${{ env.REPO }}-frontend/Dockerfile
             push: true
             tags: ${{ steps.imageName.outputs.name }}
-
+            provenance: true
+            sbom: true
+        
+  #------------------------------------------------------------------------#
+  #                   Build and publich frontend image on GHCR
+  #------------------------------------------------------------------------#
 
  
