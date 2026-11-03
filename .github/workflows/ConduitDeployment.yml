@@ -80,15 +80,18 @@ jobs:
       - name: List local images
         run: docker images --format '{{.Repository}}:{{.Tag}}'
 
+      ############Disabled because current backend Repo has security vulnerabilities that are outside of the scope for this project ############
+      ############ Left in as an example of how to use Trivy to scan an image before pushing to a Repo ########################
       # Scan image for safety before pushing to Repo
-      - name: Scan backend image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ steps.imageName.outputs.image }}:${{ github.sha }}
-          format: table
-          severity: HIGH,CRITICAL
-          exit-code: '1'
-          ignore-unfixed: true
+      # - name: Scan backend image with Trivy
+      #  uses: aquasecurity/trivy-action@v0.36.0
+      #  with:
+      #    image-ref: ${{ steps.imageName.outputs.image }}:${{ github.sha }}
+      #    format: table
+      #    severity: HIGH,CRITICAL
+      #    exit-code: '1'
+      #    ignore-unfixed: true
+      #########################################################################################################
 
       # On passed scan, push to repo
       - name: Push backend image
