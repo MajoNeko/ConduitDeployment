@@ -77,7 +77,7 @@ jobs:
 
       # Scan image for safety before pushing to Repo
       - name: Scan backend image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: ${{ steps.imageName.outputs.image }}:sha-${{ github.sha }}
           format: table
@@ -101,6 +101,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
       
+      # Sign image by digest
       - name: Sign backend image
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
