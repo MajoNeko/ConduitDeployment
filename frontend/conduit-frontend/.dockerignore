@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+.yarnrc.yml
+
+# Build output
+dist/
+out-tsc/
+tmp/
+.angular/
+.cache/
+
+# Testing / tooling
+coverage/
+.nyc_output/
+*.lcov
+.eslintcache
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Version control and editors
+.git/
+.gitignore
+.gitattributes
+.github/
+.vscode/
+.idea/
+*.swp
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yaml
+
+# Docs
+README.md
+docs/
+*.md
+*.pdf
