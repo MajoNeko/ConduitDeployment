@@ -77,7 +77,7 @@ jobs:
 
       # Scan image for safety before pushing to Repo
       - name: Scan backend image with Trivy
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.imageName.outputs.image }}:sha-${{ github.sha }}
           format: table
