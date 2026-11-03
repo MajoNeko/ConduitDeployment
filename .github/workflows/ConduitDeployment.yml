@@ -75,6 +75,10 @@ jobs:
           provenance: true
           sbom: true
 
+      # Debug step to check tags
+      - name: List local images
+        run: docker images --format '{{.Repository}}:{{.Tag}}'
+
       # Scan image for safety before pushing to Repo
       - name: Scan backend image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
