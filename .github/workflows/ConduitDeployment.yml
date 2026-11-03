@@ -9,15 +9,13 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "main" ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  OWNER: majoneko
   REPO: conduit
-
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -55,19 +53,19 @@ jobs:
 
       # Using Personal AccessToken (PAT), logs into the GIT Hub Container Repository (GHCR)
       - name: Log in to the Container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Build and push Docker backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ./backend/${{ env.REPO }}-backend
           file: ./backend/${{ env.REPO }}-backend/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-backend:latest
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-backend:latest
 
 
 
