@@ -46,28 +46,28 @@ jobs:
 #                   Build and publich backend on GHCR
 #------------------------------------------------------------------------#
 
-build_and_publish_backend:
-  runs-on: ubuntu-latest
-  steps:
-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-    - name: Checkout repository
-      uses: actions/checkout@v4
+  build_and_publish_backend:
+    runs-on: ubuntu-latest
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # Using Personal AccessToken (PAT), logs into the GIT Hub Container Repository (GHCR)
-    - name: Log in to the Container registry
-      uses: docker/login-action@v2
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GHCR_PAT }}
-    
-    - name: Build and push Docker backend image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./backend/${{ env.REPO }}-backend/Dockerfile
-        push: true
-        tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-backend:latest
+      # Using Personal AccessToken (PAT), logs into the GIT Hub Container Repository (GHCR)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+      
+      - name: Build and push Docker backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/${{ env.REPO }}-backend/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.REPO }}-backend:latest
 
 
 
