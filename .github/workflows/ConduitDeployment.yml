@@ -58,6 +58,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Set repository owner name to lowercase    
+      - name: Set lowercase image name
+        id: imageName
+        run: echo "name=${ env.REGISTRY }/${GITHUB_REPOSITORY_OWNER,,}/${ env.REPO }-backend:latest" >> "$GITHUB_OUTPUT"
       
       - name: Build and push Docker backend image
         uses: docker/build-push-action@v6
@@ -65,7 +70,7 @@ jobs:
           context: ./backend/${{ env.REPO }}-backend
           file: ./backend/${{ env.REPO }}-backend/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-backend:latest
+          tags: ${{ steps.imageName.outputs.name }}
 
 
 
