@@ -25,7 +25,7 @@ permissions:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 #------------------------------------------------------------------------#
-#                   Build and publich backend on GHCR
+#                   Build and publich backend image on GHCR
 #------------------------------------------------------------------------#
 
   build_and_publish_backend:
@@ -56,8 +56,38 @@ jobs:
           push: true
           tags: ${{ steps.imageName.outputs.name }}
 
+  #------------------------------------------------------------------------#
+  #                   Build and publich frontend image on GHCR
+  #------------------------------------------------------------------------#
+  build_and_publish_frontend:
+      runs-on: ubuntu-latest
+      # this build requires the previous image to be handled first
+      needs: build_and_publish_backend
+      steps:
+        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+        - name: Checkout repository
+          uses: actions/checkout@v4
 
+        # Using Personal AccessToken (PAT), logs into the GIT Hub Container Repository (GHCR)
+        - name: Log in to the Container registry
+          uses: docker/login-action@v3
+          with:
+            registry: ${{ env.REGISTRY }}
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
 
+        # Set repository owner name to lowercase for GHCR
+        - name: Set lowercase image name
+          id: imageName
+          run: echo "name=${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-frontend:latest" >> "$GITHUB_OUTPUT"
+
+        - name: Build and push Docker frontend image
+          uses: docker/build-push-action@v6
+          with:
+            context: ./frontend/${{ env.REPO }}-frontend
+            file: ./frontend/${{ env.REPO }}-frontend/Dockerfile
+            push: true
+            tags: ${{ steps.imageName.outputs.name }}
 
 
  
