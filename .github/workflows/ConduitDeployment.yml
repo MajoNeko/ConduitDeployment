@@ -207,7 +207,7 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.VM_SSH_PORT }}
         script_stop: true
-       script: |
+        script: |
             set -euo pipefail
             cd ~/conduit-deployment
 
