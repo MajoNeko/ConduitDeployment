@@ -14,8 +14,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
   backend:
-    image: ghcr.io/majoneko/conduit-backend:latest
+    image: ${BACKEND_IMAGE:-ghcr.io/majoneko/conduit-backend:latest}
     container_name: conduit-backend
     restart: unless-stopped
     # Backend should only start up when the database is up and running
@@ -37,17 +42,28 @@ services:
       - "${BACKEND_PORT}:8000"
     volumes:
       - static_volume:/app/staticfiles
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
   frontend:
-    image: ghcr.io/majoneko/conduit-frontend:latest
+    image: ${FRONTEND_IMAGE:-ghcr.io/majoneko/conduit-frontend:latest}
     container_name: conduit-frontend
     restart: unless-stopped
     # Frontend should only run whn backend is up and running
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     ports:
       - "${FRONTEND_PORT}:80"
     volumes:
       - static_volume:/usr/share/nginx/html/static
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   db-data:
