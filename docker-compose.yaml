@@ -1,7 +1,6 @@
 services:
   database:
     image: postgres:13
-    container_name: conduit-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -21,7 +20,6 @@ services:
         max-file: "3"
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/majoneko/conduit-backend:latest}
-    container_name: conduit-backend
     restart: unless-stopped
     # Backend should only start up when the database is up and running
     depends_on:
@@ -49,7 +47,6 @@ services:
         max-file: "3"
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/majoneko/conduit-frontend:latest}
-    container_name: conduit-frontend
     restart: unless-stopped
     # Frontend should only run whn backend is up and running
     depends_on:

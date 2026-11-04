@@ -219,11 +219,12 @@ jobs:
             export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:${GITHUB_SHA}"
             export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:${GITHUB_SHA}"
 
+            docker compose down --remove-orphans || true
             docker compose pull
             docker compose up -d --remove-orphans
 
              for i in $(seq 1 30); do
-              if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/api/articles/"; then
+              if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/"; then
                 echo "Deployment healthy."
                 exit 0
               fi
