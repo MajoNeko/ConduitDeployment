@@ -214,8 +214,9 @@ jobs:
             printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
             set -a; . ./.env; set +a
 
-            export BACKEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/conduit-backend:${GITHUB_SHA}"
-            export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/conduit-frontend:${GITHUB_SHA}"
+            OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+            export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:${GITHUB_SHA}"
+            export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:${GITHUB_SHA}"
 
             docker compose pull
             docker compose up -d --remove-orphans
