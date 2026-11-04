@@ -143,7 +143,7 @@ jobs:
         - name: Set lowercase image name and immutable tags
           id: imageName
           run: |
-            IMAGE="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-backend"
+            IMAGE="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-frontend"
             SHA_SHORT="${GITHUB_SHA::7}"
             echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
             echo "tags<<EOF" >> "$GITHUB_OUTPUT"
@@ -176,7 +176,57 @@ jobs:
             cosign sign --yes "${{ steps.imageName.outputs.image }}@${DIGEST}"
         
   #------------------------------------------------------------------------#
-  #                   Build and publich frontend image on GHCR
+  #                   Remotely Deploy over SSH with DockerCompose
   #------------------------------------------------------------------------#
 
- 
+  deploy_on_VM:
+    runs-on: ubuntu-latest
+    needs: [build_and_publish_backend, build_and_publish_frontend]
+    environment: production
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Copy Compose file to VM
+      uses: appleboy/scp-action@v0.1.7
+      with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VM_SSH_PORT }}
+          source: "docker-compose.yaml"
+          target: "~/conduit-deployment"
+          overwrite: true
+
+    - name: Deploy over SSH
+      uses: appleboy/ssh-action@v1.2.0
+      with:
+        host: ${{ secrets.VM_IP }}
+        username: ${{ secrets.VM_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.VM_SSH_PORT }}
+        script_stop: true
+       script: |
+            set -euo pipefail
+            cd ~/conduit-deployment
+
+            printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
+            set -a; . ./.env; set +a
+
+            export BACKEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/conduit-backend:${GITHUB_SHA}"
+            export FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/conduit-frontend:${GITHUB_SHA}"
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+             for i in $(seq 1 30); do
+              if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/api/articles/"; then
+                echo "Deployment healthy."
+                exit 0
+              fi
+              sleep 5
+            done
+
+            docker compose logs --tail=100
+            exit 1
