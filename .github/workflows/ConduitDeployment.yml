@@ -64,33 +64,7 @@ jobs:
           echo "$IMAGE:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
       
-      - name: Build Docker backend image
-        id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend/${{ env.REPO }}-backend
-          file: ./backend/${{ env.REPO }}-backend/Dockerfile
-          load: true
-          push: false
-          tags: ${{ steps.imageName.outputs.tags }}
-          provenance: true
-          sbom: true
-
-      ############Disabled because current backend Repo has security vulnerabilities that are outside of the scope for this project ############
-      ############ Left in as an example of how to use Trivy to scan an image before pushing to a Repo ########################
-      # Scan image for safety before pushing to Repo
-      # - name: Scan backend image with Trivy
-      #  uses: aquasecurity/trivy-action@v0.36.0
-      #  with:
-      #    image-ref: ${{ steps.imageName.outputs.image }}:${{ github.sha }}
-      #    format: table
-      #    severity: HIGH,CRITICAL
-      #    exit-code: '1'
-      #    ignore-unfixed: true
-      #########################################################################################################
-
-      # On passed scan, push to repo
-      - name: Push backend image
+      - name: Build and push Docker backend image
         id: push
         uses: docker/build-push-action@v6
         with:
