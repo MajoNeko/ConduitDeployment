@@ -83,7 +83,7 @@ cd ConduitDeployment
 2. Configure Github Secrets to allow the workflow to correctly obtain the necessary variables.
 To configure Github Secrets, click on "Settings" in your Repo and then under "Security and quality" click on "Secrets and variables" and select "Actions"
 
-![alt text](image-1.png)
+![alt text](docs/imgs/image-1.png)
 
 Here you can add, edit or remove secrets from the repository.
 The following secrets are necessary to run the workflow:
@@ -103,7 +103,7 @@ The following secrets are necessary to run the workflow:
 
 3. Trigger the deployment manually by going to the Actions tab in the repository, selecting the workflow on the left side panel and clicking on the "Run Workflow" button on the right side:
 
-![alt text](image-2.png)
+![alt text](docs/imgs/image-2.png)
 
 The workflow will also run automatically when:
 
