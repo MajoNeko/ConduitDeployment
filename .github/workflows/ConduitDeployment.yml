@@ -63,14 +63,7 @@ jobs:
             type=sha, format=long
             type=ref,event=branch
             type=semver,pattern={{version}}
-
-      - name: Debug meta outputs
-        run: |
-          echo "image=[${{ steps.meta.outputs.image }}]"
-          echo "tags=[${{ steps.meta.outputs.tags }}]"
-          echo "REGISTRY=[${{ env.REGISTRY }}]"
-          echo "REPO=[${{ env.REPO }}]"
-      
+     
       - name: Build and push Docker backend image
         id: push
         uses: docker/build-push-action@v6
@@ -90,8 +83,12 @@ jobs:
       - name: Sign backend image
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          cosign sign --yes "${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-backend@${DIGEST}"
+            OWNER_LC="$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')"
+            REF="ghcr.io/${OWNER_LC}/conduit-backend@${DIGEST}"
+            echo "Signing ${REF}"
+            cosign sign --yes "${REF}"
         
   #------------------------------------------------------------------------#
   #                   Build and publish frontend image on GHCR
@@ -153,8 +150,12 @@ jobs:
         - name: Sign frontend image
           env:
             DIGEST: ${{ steps.push.outputs.digest }}
+            OWNER: ${{ github.repository_owner }}
           run: |
-            cosign sign --yes "${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-frontend@${DIGEST}"
+            OWNER_LC="$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')"
+            REF="ghcr.io/${OWNER_LC}/conduit-frontend@${DIGEST}"
+            echo "Signing ${REF}"
+            cosign sign --yes "${REF}"
         
   #------------------------------------------------------------------------#
   #                   Remotely Deploy over SSH with DockerCompose
