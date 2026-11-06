@@ -65,6 +65,12 @@ jobs:
             type=ref,event=pr
             type=semver,pattern={{version}}
 
+      - name: Debug meta outputs
+        run: |
+          echo "image=[${{ steps.meta.outputs.image }}]"
+          echo "tags=[${{ steps.meta.outputs.tags }}]"
+          echo "REGISTRY=[${{ env.REGISTRY }}]"
+          echo "REPO=[${{ env.REPO }}]"
       
       - name: Build and push Docker backend image
         id: push
