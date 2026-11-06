@@ -135,12 +135,11 @@ Tags are generated using `docker/metadata-action`. The image name comes from `${
 | `type=sha,format=short,prefix=sha-` | `conduit-backend:sha-b6deba8`     | Every build               |
 | `type=sha,format=long`              | `conduit-backend:b6deba88d09c...` | Every build               |
 | `type=ref,event=branch`             | `conduit-backend:efeatue`         | Pushes to a branch        |
-| `type=ref,event=pr`                 | `conduit-backend:pr-42`           | Pull request events       |
 | `type=semver,pattern={{version}}`   | `conduit-backend:1.2.3`           | Git tag matching `v*.*.*` |
 
 There are three SHA based tags which are are used for deployment. It is immutable and is what the deploy script pins. 
 The `latest` tag will always point to the most recent build.
-Branch and PR tags are used for convenience and are not suitable for pinning as they move forward on each build.
+Branch tags are used for convenience and are not suitable for pinning as they move forward on each build.
 The `semver` tag will only appear when a git tag is pushed, for example `v1.2.3`. If you never tag release, that rule will produce nothing.
 
 ### Modifying Behavior
