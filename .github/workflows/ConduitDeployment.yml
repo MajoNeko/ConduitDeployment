@@ -56,7 +56,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          image: ${{ env.REGISTRY }}/${{github.repository_owner}}/${{ env.REPO }}-backend
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-backend
           tags: |
             type=raw,value=latest
             type=sha, format=short,prefix=sha-
@@ -125,7 +125,7 @@ jobs:
           id: meta
           uses: docker/metadata-action@v6
           with:
-            image: ${{ env.REGISTRY }}/${{github.repository_owner}}/${{ env.REPO }}-frontend
+            images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-frontend
             tags: |
               type=raw,value=latest
               type=sha, format=short,prefix=sha-
