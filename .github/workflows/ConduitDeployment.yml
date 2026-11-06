@@ -214,8 +214,8 @@ jobs:
             PREV_BACKEND=$(docker inspect -f '{{.Config.Image}}' conduit-backend 2>/dev/null || true)
             PREV_FRONTEND=$(docker inspect -f '{{.Config.Image}}' conduit-frontend 2>/dev/null || true)
 
-            export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:${GITHUB_SHA}"
-            export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:${GITHUB_SHA}"
+            export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:sha-${GITHUB_SHA}"
+            export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:sha-${GITHUB_SHA}"
 
             rollback(){
               echo "Deployment failed - attempting rollback."
