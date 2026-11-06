@@ -62,7 +62,6 @@ jobs:
             type=sha, format=short,prefix=sha-
             type=sha, format=long
             type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
 
       - name: Debug meta outputs
@@ -132,7 +131,6 @@ jobs:
               type=sha, format=short,prefix=sha-
               type=sha, format=long
               type=ref,event=branch
-              type=ref,event=pr
               type=semver,pattern={{version}}
 
         - name: Build and push Docker frontend image
