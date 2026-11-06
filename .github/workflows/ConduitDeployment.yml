@@ -32,7 +32,7 @@ jobs:
   build_and_publish_backend:
     runs-on: ubuntu-latest
     outputs:
-      image: ${{ steps.imageName.outputs.image }}
+      image: ${{ steps.meta.outputs.image }}
       digest: ${{ steps.push.outputs.digest }}
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -52,17 +52,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Set repository owner name to lowercase for GHCR and set immutable tags for signed images
-      - name: Set lowercase image name and immutable tags
-        id: imageName
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-backend"
-          SHA_SHORT="${GITHUB_SHA::7}"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$IMAGE:latest" >> "$GITHUB_OUTPUT"
-          echo "$IMAGE:sha-$SHA_SHORT" >> "$GITHUB_OUTPUT"
-          echo "$IMAGE:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+      - name: Docker meta (set  multiple tags and lowercase the repo user name)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{github.repository_owner}}/${{ env.REPO }}-backend
+          tags: |
+            type=raw,value=latest
+            type=sha, format=short,prefix=sha-
+            type=sha, format=long
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+
       
       - name: Build and push Docker backend image
         id: push
@@ -71,7 +73,7 @@ jobs:
           context: ./backend/${{ env.REPO }}-backend
           file: ./backend/${{ env.REPO }}-backend/Dockerfile
           push: true
-          tags: ${{ steps.imageName.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           provenance: true
           sbom: true
 
@@ -84,7 +86,7 @@ jobs:
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          cosign sign --yes "${{ steps.imageName.outputs.image }}@${DIGEST}"
+          cosign sign --yes "${{ steps.meta.outputs.image }}@${DIGEST}"
         
   #------------------------------------------------------------------------#
   #                   Build and publish frontend image on GHCR
@@ -94,7 +96,7 @@ jobs:
       # this build requires the previous image to be handled first
       needs: build_and_publish_backend
       outputs:
-        image: ${{ steps.imageName.outputs.image }}
+        image: ${{ steps.meta.outputs.image }}
         digest: ${{ steps.push.outputs.digest }}
       steps:
         # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -114,18 +116,18 @@ jobs:
             password: ${{ secrets.GITHUB_TOKEN }}
 
         # Set repository owner name to lowercase for GHCR and set immutable tags for signed images
-        - name: Set lowercase image name and immutable tags
-          id: imageName
-          run: |
-            IMAGE="${{ env.REGISTRY }}/${GITHUB_REPOSITORY_OWNER,,}/${{ env.REPO }}-frontend"
-            SHA_SHORT="${GITHUB_SHA::7}"
-            echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-            echo "tags<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:latest" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:sha-$SHA_SHORT" >> "$GITHUB_OUTPUT"
-            echo "$IMAGE:$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-
+        - name: Docker meta (set  multiple tags and lowercase the repo user name)
+          id: meta
+          uses: docker/metadata-action@v6
+          with:
+            images: ${{ env.REGISTRY }}/${{github.repository_owner}}/${{ env.REPO }}-frontend
+            tags: |
+              type=raw,value=latest
+              type=sha, format=short,prefix=sha-
+              type=sha, format=long
+              type=ref,event=branch
+              type=ref,event=pr
+              type=semver,pattern={{version}}
 
         - name: Build and push Docker frontend image
           id: push
@@ -134,7 +136,8 @@ jobs:
             context: ./frontend/${{ env.REPO }}-frontend
             file: ./frontend/${{ env.REPO }}-frontend/Dockerfile
             push: true
-            tags: ${{ steps.imageName.outputs.tags }}
+            tags: ${{ steps.meta.outputs.tags }}
+            labels: ${{ steps.meta.outputs.labels }}
             provenance: true
             sbom: true
 
@@ -147,7 +150,7 @@ jobs:
           env:
             DIGEST: ${{ steps.push.outputs.digest }}
           run: |
-            cosign sign --yes "${{ steps.imageName.outputs.image }}@${DIGEST}"
+            cosign sign --yes "${{ steps.meta.outputs.image }}@${DIGEST}"
         
   #------------------------------------------------------------------------#
   #                   Remotely Deploy over SSH with DockerCompose
@@ -190,20 +193,42 @@ jobs:
             set -a; . ./.env; set +a
 
             OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+
+            wait_healthy(){
+              local msg="$1" attempts="${2:-30}"
+              for _ in $(seq 1 "${attempts}"); do
+                if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/"; then
+                  echo "${msg}"
+                  return 0
+                fi
+                sleep 5
+              done
+              return 1
+            }
+
+            PREV_BACKEND=$(docker inspect -f '{{.Config.Image}}' conduit-backend 2>/dev/null || true)
+            PREV_FRONTEND=$(docker inspect -f '{{.Config.Image}}' conduit-frontend 2>/dev/null || true)
+
             export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:${GITHUB_SHA}"
             export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:${GITHUB_SHA}"
 
-            docker compose pull
-            docker compose down --remove-orphans || true
-            docker compose up -d --remove-orphans
-
-             for i in $(seq 1 30); do
-              if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/"; then
-                echo "Deployment healthy."
-                exit 0
+            rollback(){
+              echo "Deployment failed - attempting rollback."
+              if [ -n "$PREV_BACKEND" ] && [ -n "$PREV_FRONTEND" ]; then
+                echo "Rolling back to: ${PREV_BACKEND} / ${PREV_FRONTEND}"
+                export BACKEND_IMAGE="${PREV_BACKEND}"
+                export FRONTEND_IMAGE="${PREV_FRONTEND}"
+                docker compose up -d --remove-orphans || echo "Rollback failed."
+                wait_healthy "Rollback healthy - previous version restored." 12 \
+                  || echo "Rollback un healthy"
+              else
+                echo "No previous images recorded; nothing to roll back to."
               fi
-              sleep 5
-            done
+              docker compose logs --tail=100
+              exit 1
+            }
 
-            docker compose logs --tail=100
-            exit 1
+            docker compose pull || rollback
+            docker compose up -d --remove-orphans || rollback
+
+            wait_healthy "Deployment healthy." 30 || rollback

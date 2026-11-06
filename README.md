@@ -12,6 +12,7 @@ The frontend image uses a pre existing Repo built with Angular while the backend
 - [Project Structure](#project-structure)
 - [Usage](#usage)
   - [Steps and Configuration](#steps-and-configuration)
+  - [Image tags](#image-tags)
   - [Modifying Behavior](#modifying-behavior)
     - [Enable debug mode](#enable-debug-mode)
     - [Change access ports](#change-access-ports)
@@ -118,11 +119,29 @@ The workflow will now:
 - copy the compose file to the VM
 - connect to the server via SSH
 - create the .env file on the host
-- stop any previously running instances
 - start the application using docker compose
+- if something fails during this step, a rollback will be preformed with the previous running images. (On frist run, the rollback will simply log and fail as there are no previous images to fallback on.) Rollback only restores the application images so a migration applied by a failed deploy is not undone.
 - wait for the application to be reachable (for about 2.5 minutes) or return an exit code 1 on failure. On failure the last 100 lines of log output from every service will be print for easier debugging.
 
 4. Access the frontend through <VM_IP>:<FRONTEND_PORT> (default is 8282)
+
+### Image tags
+
+Tags are generated using `docker/metadata-action`. The image name comes from `${REGISTRY}/${repository_owner}/${REPO}-frontend` (and -backend`), with the repository owner lowercased automatically, since GHCR rejects uppercase paths.
+
+| Tag Rule                            | Example                           | When it is produced       |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `type=raw,value=latest`             | `conduit-backend:latest`          | Every build               |
+| `type=sha,format=short,prefix=sha-` | `conduit-backend:sha-b6deba8`     | Every build               |
+| `type=sha,format=long`              | `conduit-backend:b6deba88d09c...` | Every build               |
+| `type=ref,event=branch`             | `conduit-backend:efeatue`         | Pushes to a branch        |
+| `type=ref,event=pr`                 | `conduit-backend:pr-42`           | Pull request events       |
+| `type=semver,pattern={{version}}`   | `conduit-backend:1.2.3`           | Git tag matching `v*.*.*` |
+
+There are three SHA based tags which are are used for deployment. It is immutable and is what the deploy script pins. 
+The `latest` tag will always point to the most recent build.
+Branch and PR tags are used for convenience and are not suitable for pinning as they move forward on each build.
+The `semver` tag will only appear when a git tag is pushed, for example `v1.2.3`. If you never tag release, that rule will produce nothing.
 
 ### Modifying Behavior
 
