@@ -1,36 +1,239 @@
 # This is a basic workflow to help you get started with Actions
 
-name: CI
+name: CICD
 
 # Controls when the workflow will run
 on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  REPO: conduit
+
+# permissions granted to this workflow for the Repo
+permissions:
+  contents: read
+  packages: write
+  id-token: write
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+#------------------------------------------------------------------------#
+#                   Build and publish backend image on GHCR
+#------------------------------------------------------------------------#
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+  build_and_publish_backend:
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      digest: ${{ steps.push.outputs.digest }}
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      # Sets a dedicated builder to allow for the use of SBOM and provenance and keeps the state consistent across steps
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      # Using the default github token, logs into the GIT Hub Container Repository (GHCR)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Set repository owner name to lowercase for GHCR and set immutable tags for signed images
+      - name: Docker meta (set  multiple tags and lowercase the repo user name)
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-backend
+          tags: |
+            type=raw,value=latest
+            type=sha, format=short,prefix=sha-
+            type=sha, format=long
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+     
+      - name: Build and push Docker backend image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/${{ env.REPO }}-backend
+          file: ./backend/${{ env.REPO }}-backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: true
+          sbom: true
+
+      # Setup signed image
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      
+      # Sign image by digest
+      - name: Sign backend image
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+            OWNER_LC="$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')"
+            REF="ghcr.io/${OWNER_LC}/conduit-backend@${DIGEST}"
+            echo "Signing ${REF}"
+            cosign sign --yes "${REF}"
+        
+  #------------------------------------------------------------------------#
+  #                   Build and publish frontend image on GHCR
+  #------------------------------------------------------------------------#
+  build_and_publish_frontend:
+      runs-on: ubuntu-latest
+      # this build requires the previous image to be handled first
+      needs: build_and_publish_backend
+      outputs:
+        image: ${{ steps.meta.outputs.image }}
+        digest: ${{ steps.push.outputs.digest }}
+      steps:
+        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        # Sets a dedicated builder to allow for the use of SBOM and provenance and keeps the state consistent across steps
+        - name: Set up Docker Buildx
+          uses: docker/setup-buildx-action@v3
+
+        # Using the default github token, logs into the GIT Hub Container Repository (GHCR)
+        - name: Log in to the Container registry
+          uses: docker/login-action@v3
+          with:
+            registry: ${{ env.REGISTRY }}
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+
+        # Set repository owner name to lowercase for GHCR and set immutable tags for signed images
+        - name: Docker meta (set  multiple tags and lowercase the repo user name)
+          id: meta
+          uses: docker/metadata-action@v6
+          with:
+            images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.REPO }}-frontend
+            tags: |
+              type=raw,value=latest
+              type=sha, format=short,prefix=sha-
+              type=sha, format=long
+              type=ref,event=branch
+              type=semver,pattern={{version}}
+
+        - name: Build and push Docker frontend image
+          id: push
+          uses: docker/build-push-action@v6
+          with:
+            context: ./frontend/${{ env.REPO }}-frontend
+            file: ./frontend/${{ env.REPO }}-frontend/Dockerfile
+            push: true
+            tags: ${{ steps.meta.outputs.tags }}
+            labels: ${{ steps.meta.outputs.labels }}
+            provenance: true
+            sbom: true
+
+        # Setup signed image
+        - name: Install cosign
+          uses: sigstore/cosign-installer@v3
+        
+        # Sign image by digest
+        - name: Sign frontend image
+          env:
+            DIGEST: ${{ steps.push.outputs.digest }}
+            OWNER: ${{ github.repository_owner }}
+          run: |
+            OWNER_LC="$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')"
+            REF="ghcr.io/${OWNER_LC}/conduit-frontend@${DIGEST}"
+            echo "Signing ${REF}"
+            cosign sign --yes "${REF}"
+        
+  #------------------------------------------------------------------------#
+  #                   Remotely Deploy over SSH with DockerCompose
+  #------------------------------------------------------------------------#
+
+  deploy_on_VM:
+    runs-on: ubuntu-latest
+    needs: [build_and_publish_backend, build_and_publish_frontend]
+    environment: production
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Copy Compose file to VM
+      uses: appleboy/scp-action@v0.1.7
+      with:
+          host: ${{ secrets.VM_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VM_SSH_PORT }}
+          source: "docker-compose.yaml"
+          target: "~/conduit-deployment"
+          overwrite: true
+
+    - name: Deploy over SSH
+      uses: appleboy/ssh-action@v1.2.0
+      with:
+        host: ${{ secrets.VM_IP }}
+        username: ${{ secrets.VM_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.VM_SSH_PORT }}
+        script_stop: true
+        envs: GITHUB_REPOSITORY_OWNER,GITHUB_SHA
+        script: |
+            set -euo pipefail
+            cd ~/conduit-deployment
+
+            printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
+            set -a; . ./.env; set +a
+
+            OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+
+            wait_healthy(){
+              local msg="$1" attempts="${2:-30}"
+              for _ in $(seq 1 "${attempts}"); do
+                if curl -fsS -o /dev/null "http://localhost:${FRONTEND_PORT}/"; then
+                  echo "${msg}"
+                  return 0
+                fi
+                sleep 5
+              done
+              return 1
+            }
+
+            PREV_BACKEND=$(docker inspect -f '{{.Config.Image}}' conduit-backend 2>/dev/null || true)
+            PREV_FRONTEND=$(docker inspect -f '{{.Config.Image}}' conduit-frontend 2>/dev/null || true)
+
+            export BACKEND_IMAGE="ghcr.io/${OWNER}/conduit-backend:sha-${GITHUB_SHA}"
+            export FRONTEND_IMAGE="ghcr.io/${OWNER}/conduit-frontend:sha-${GITHUB_SHA}"
+
+            rollback(){
+              echo "Deployment failed - attempting rollback."
+              if [ -n "$PREV_BACKEND" ] && [ -n "$PREV_FRONTEND" ]; then
+                echo "Rolling back to: ${PREV_BACKEND} / ${PREV_FRONTEND}"
+                export BACKEND_IMAGE="${PREV_BACKEND}"
+                export FRONTEND_IMAGE="${PREV_FRONTEND}"
+                docker compose up -d --remove-orphans || echo "Rollback failed."
+                wait_healthy "Rollback healthy - previous version restored." 12 \
+                  || echo "Rollback un healthy"
+              else
+                echo "No previous images recorded; nothing to roll back to."
+              fi
+              docker compose logs --tail=100
+              exit 1
+            }
+
+            docker compose pull || rollback
+            docker compose up -d --remove-orphans || rollback
+
+            wait_healthy "Deployment healthy." 30 || rollback
